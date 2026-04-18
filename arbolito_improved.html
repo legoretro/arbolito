@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Arbolito"/>
+  <meta name="theme-color" content="#e8e4dc"/>
+  <title>Arbolito 🌿</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Supabase for database only (no auth) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- EmailJS for forgot-password notifications -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+  <style>
+    :root{
+      --green:#6b8f6e;--green-dk:#2d4f32;--green-lt:#8aab8d;--green-pale:#dce8dd;
+      --cream:#e8e4dc;--warm:#f0ece4;--bark:#3a2e22;
+      --text:#1e2a1f;--text-soft:#4a5a4c;--text-muted:#7a8c7c;
+      --border:#c4c0b4;--red:#8b3a28;
+      --r:18px;--r-sm:12px;
+      --sh:0 2px 14px rgba(20,35,22,.12);--sh-lg:0 6px 28px rgba(20,35,22,.20);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;font-family:'Nunito',sans-serif;background:var(--cream);color:var(--text);overflow:hidden}
+    #app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--cream);position:relative;overflow:hidden}
+
+    /* views */
+    .view{display:none;flex-direction:column;flex:1;overflow:hidden}
+    .view.active{display:flex}
+
+    /* loading */
+    #view-loading{align-items:center;justify-content:center;gap:16px}
+    .load-logo{font-size:60px;animation:pulse 1.4s ease-in-out infinite}
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+    .load-txt{font-size:15px;color:var(--text-muted);font-weight:700}
+
+    /* auth screens */
+    .auth-screen{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;align-items:center;padding:44px 28px 56px}
+    .auth-logo{font-size:68px;margin-bottom:6px;line-height:1}
+    .auth-title{font-size:32px;font-weight:900;color:var(--text);margin-bottom:4px;letter-spacing:-.5px}
+    .auth-sub{font-size:14px;color:var(--text-muted);margin-bottom:32px;text-align:center;line-height:1.5}
+    .auth-card{width:100%;background:var(--warm);border-radius:var(--r);border:2px solid var(--border);padding:22px 20px;box-shadow:var(--sh);display:flex;flex-direction:column;gap:12px}
+    .auth-lbl{font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:-4px}
+    .auth-in{width:100%;background:var(--cream);border:2px solid var(--border);border-radius:var(--r-sm);padding:13px 14px;font-size:16px;color:var(--text);font-family:'Nunito',sans-serif;outline:none;-webkit-appearance:none;transition:border-color .15s}
+    .auth-in:focus{border-color:var(--green)}
+    .auth-err{font-size:13px;color:var(--red);font-weight:700;text-align:center;min-height:16px;line-height:1.4}
+    .auth-ok{font-size:13px;color:var(--green-dk);font-weight:700;text-align:center;min-height:16px}
+    .big-btn{width:100%;background:var(--green-dk);color:#fff;border:none;border-radius:var(--r);padding:16px;font-size:17px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;transition:opacity .15s;margin-top:4px;-webkit-appearance:none}
+    .big-btn:active{opacity:.82}
+    .big-btn:disabled{opacity:.45;cursor:not-allowed}
+    .big-btn.outline{background:transparent;color:var(--green-dk);border:2px solid var(--green-lt)}
+    .auth-switch{font-size:14px;color:var(--text-muted);text-align:center;margin-top:16px;cursor:pointer}
+    .auth-switch b{color:var(--green-dk);text-decoration:underline}
+    .auth-forgot{font-size:13px;color:var(--text-muted);text-align:center;margin-top:8px;cursor:pointer}
+    .auth-forgot b{color:var(--text-soft);text-decoration:underline}
+
+    /* topbar */
+    .topbar{background:var(--warm);border-bottom:2px solid var(--border);padding:13px 18px 11px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+    .topbar-title{font-size:18px;font-weight:800;color:var(--text);flex:1}
+    .topbar-sub{font-size:11px;color:var(--text-muted);margin-top:2px;font-weight:600}
+    .back-btn{background:none;border:none;font-size:26px;cursor:pointer;padding:0 8px 0 0;color:var(--green-dk);line-height:1;font-weight:700}
+    .icon-btn{background:none;border:none;font-size:17px;cursor:pointer;padding:5px;border-radius:8px;line-height:1}
+    .icon-btn.more{font-size:20px;color:var(--text-muted)}
+    .icon-btn:active{background:var(--green-pale)}
+    .signout{font-size:12px;color:var(--text-muted);background:none;border:none;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:700;text-decoration:underline}
+
+    /* nav */
+    .bottom-nav{display:flex;background:var(--warm);border-top:2px solid var(--border);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
+    .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:9px 0 11px;border:none;background:none;cursor:pointer;gap:3px}
+    .nav-btn.active{background:var(--green-pale)}
+    .nav-icon{font-size:21px;line-height:1}
+    .nav-label{font-size:10px;font-weight:800;color:var(--text-muted);letter-spacing:.4px;text-transform:uppercase}
+    .nav-btn.active .nav-label{color:var(--green-dk)}
+
+    .scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px;padding-bottom:24px}
+
+    /* list cards */
+    .list-card{background:var(--warm);border-radius:var(--r);border:2px solid var(--border);padding:15px 16px;margin-bottom:10px;display:flex;align-items:center;gap:13px;cursor:pointer;box-shadow:var(--sh);transition:transform .12s}
+    .list-card:active{transform:scale(.97)}
+    .list-emoji{font-size:34px;line-height:1;flex-shrink:0}
+    .list-info{flex:1;min-width:0}
+    .list-name{font-size:16px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .list-meta{font-size:11px;color:var(--text-muted);margin-top:3px;font-weight:600}
+    .list-progress{margin-top:9px;display:flex;align-items:center;gap:8px}
+    .progress{flex:1;height:8px;background:#ddd7cb;border-radius:999px;overflow:hidden}
+    .progress-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--green-lt));border-radius:999px}
+    .progress-text{font-size:10px;font-weight:800;color:var(--text-muted);min-width:34px;text-align:right}
+    .list-btns{display:flex;gap:4px;flex-shrink:0}
+
+    .summary-card,.stats-card{background:var(--warm);border-radius:var(--r);border:2px solid var(--border);padding:14px 16px;margin-bottom:12px;box-shadow:var(--sh)}
+    .summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .summary-stat{background:var(--cream);border:2px solid var(--border);border-radius:14px;padding:12px 8px;text-align:center}
+    .summary-num{font-size:22px;font-weight:900;color:var(--green-dk);line-height:1.1}
+    .summary-lbl{font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-top:4px}
+    .stats-title{font-size:15px;font-weight:800;margin-bottom:10px}
+    .stats-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--border);font-size:14px}
+    .stats-row:first-of-type{border-top:none;padding-top:0}
+    .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 30px;gap:12px;flex:1}
+    .empty-icon{font-size:68px}
+    .empty-title{font-size:20px;font-weight:800;color:var(--text);text-align:center}
+    .empty-text{font-size:14px;color:var(--text-muted);text-align:center;line-height:1.55}
+
+    .fab{position:absolute;bottom:76px;right:18px;width:52px;height:52px;border-radius:50%;background:var(--green-dk);color:#fff;font-size:26px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-lg);z-index:200;line-height:1;transition:transform .12s}
+    .fab:active{transform:scale(.92)}
+
+    /* place cards */
+    .place-card{background:var(--warm);border-radius:var(--r);border:2px solid var(--border);padding:14px 15px;margin-bottom:10px;box-shadow:var(--sh)}
+    .place-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+    .place-ico{font-size:24px;line-height:1;flex-shrink:0;margin-top:1px}
+    .place-name{font-size:15px;font-weight:800;color:var(--text)}
+    .place-addr{font-size:12px;color:var(--text-soft);margin-top:2px;line-height:1.4}
+    .place-notes{font-size:12px;color:var(--text-muted);margin-top:4px;font-style:italic;line-height:1.4}
+    .place-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
+    .tag{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700}
+    .tag-v{background:#c8ddc8;color:#1e4020}
+    .tag-f{background:#dcc8c8;color:#5a1818}
+    .tag-w{background:#dcd0b8;color:#5a3010}
+    .place-actions{display:flex;flex-wrap:wrap;gap:6px}
+    .place-more{margin-left:auto}
+    .act-btn{flex:1;min-width:64px;padding:8px 4px;border-radius:var(--r-sm);border:2px solid var(--border);background:var(--cream);color:var(--text);font-size:12px;font-weight:700;cursor:pointer;text-align:center;font-family:'Nunito',sans-serif;transition:background .12s}
+    .act-btn.on{background:var(--green-pale);border-color:var(--green);color:var(--green-dk)}
+    .act-btn.fav-on{background:#dcc8c8;border-color:#c09090;color:#5a1818}
+    .act-btn.want-on{background:#dcd0b8;border-color:#c0a880;color:#5a3010}
+    .act-btn.danger{background:#dcc8c0;border-color:#c0a098;color:var(--red)}
+    .act-btn:active{opacity:.8}
+    .act-row{margin-top:6px}
+
+    /* autocomplete */
+    .search-wrap{position:relative}
+    .ac-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--warm);border:2px solid var(--border);border-radius:var(--r-sm);z-index:9999;max-height:200px;overflow-y:auto;box-shadow:var(--sh-lg)}
+    .ac-item{padding:11px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text)}
+    .ac-item:last-child{border-bottom:none}
+    .ac-item:active{background:var(--green-pale)}
+    .ac-name{font-weight:700;font-size:13px}
+    .ac-addr{font-size:11px;color:var(--text-muted);margin-top:1px}
+
+    /* map */
+    #map{flex:1;width:100%;z-index:1}
+    .leaflet-tile-pane{filter:saturate(0.72) brightness(0.82) contrast(1.05) hue-rotate(12deg)}
+    .leaflet-tile-pane img{mix-blend-mode:multiply}
+    .leaflet-popup-content-wrapper{border-radius:16px!important;box-shadow:var(--sh-lg)!important;border:2px solid var(--border)!important;padding:0!important;font-family:'Nunito',sans-serif!important}
+    .leaflet-popup-content{margin:0!important;width:auto!important}
+    .leaflet-popup-tip-container{display:none}
+    .pop{padding:14px 16px;min-width:175px;max-width:240px}
+    .pop-name{font-size:15px;font-weight:800;color:var(--text);margin-bottom:3px}
+    .pop-addr{font-size:12px;color:var(--text-soft);margin-bottom:6px;line-height:1.4}
+    .pop-notes{font-size:12px;color:var(--text-muted);font-style:italic;margin-bottom:8px;line-height:1.4}
+    .pop-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+    .pop-tag{font-size:11px;padding:2px 9px;border-radius:20px;font-weight:700}
+    .pop-tag-v{background:#c8ddc8;color:#1e4020}
+    .pop-tag-f{background:#dcc8c8;color:#5a1818}
+    .pop-tag-w{background:#dcd0b8;color:#5a3010}
+    .pop-nav{display:block;width:100%;background:var(--green-dk);color:#fff;border:none;border-radius:var(--r-sm);padding:10px;font-size:13px;font-weight:700;cursor:pointer;text-align:center;font-family:'Nunito',sans-serif}
+    .pop-row{display:flex;gap:6px;margin-top:6px}
+    .pop-edit{flex:1;background:var(--green-pale);color:var(--green-dk);border:2px solid var(--green-lt);border-radius:var(--r-sm);padding:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif}
+    .pop-del{flex:1;background:#dcc8c0;color:var(--red);border:2px solid #c0a098;border-radius:var(--r-sm);padding:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif}
+
+    /* modal */
+    .overlay{position:fixed;inset:0;background:rgba(20,30,20,.52);z-index:1000;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+    .overlay.open{opacity:1;pointer-events:all}
+    .modal{background:var(--warm);border-radius:24px 24px 0 0;width:100%;max-width:480px;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:max(env(safe-area-inset-bottom),20px);transform:translateY(100%);transition:transform .26s cubic-bezier(.32,.72,0,1)}
+    .overlay.open .modal{transform:translateY(0)}
+    .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0}
+    .modal-title{font-size:19px;font-weight:800;color:var(--text);padding:14px 20px 0}
+    .modal-body{padding:14px 20px 24px}
+    .lbl{font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;margin-top:16px}
+    .lbl:first-child{margin-top:0}
+    input[type=text],input[type=password],textarea{width:100%;background:var(--cream);border:2px solid var(--border);border-radius:var(--r-sm);padding:12px 14px;font-size:15px;color:var(--text);font-family:'Nunito',sans-serif;outline:none;transition:border-color .15s;-webkit-appearance:none}
+    input:focus,textarea:focus{border-color:var(--green)}
+    textarea{resize:none;height:78px;line-height:1.45}
+    .emoji-grid{display:flex;flex-wrap:wrap;gap:7px}
+    .emoji-opt{width:44px;height:44px;border-radius:12px;border:2.5px solid var(--border);background:var(--cream);font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color .12s,background .12s}
+    .emoji-opt.sel{border-color:var(--green-dk);background:var(--green-pale)}
+    .chip-row{display:flex;gap:7px;flex-wrap:wrap}
+    .chip{padding:8px 14px;border-radius:20px;border:2px solid var(--border);background:var(--cream);font-size:13px;font-weight:700;cursor:pointer;color:var(--text-soft);font-family:'Nunito',sans-serif;transition:all .12s}
+    .chip.on{border-color:var(--green);background:var(--green-pale);color:var(--green-dk)}
+    .chip.fav-chip.on{border-color:#c09090;background:#dcc8c8;color:#5a1818}
+    .chip.want-chip.on{border-color:#c0a880;background:#dcd0b8;color:#5a3010}
+    .save-btn{width:100%;background:var(--green-dk);color:#fff;border:none;border-radius:var(--r);padding:15px;font-size:16px;font-weight:800;cursor:pointer;margin-top:20px;font-family:'Nunito',sans-serif;transition:opacity .12s}
+    .save-btn:active{opacity:.85}
+    .save-btn:disabled{opacity:.5;cursor:not-allowed}
+
+    #toast{position:fixed;bottom:86px;left:50%;transform:translateX(-50%) translateY(14px);background:var(--bark);color:#fff;padding:10px 20px;border-radius:22px;font-size:14px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9999;white-space:nowrap}
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+    /* share */
+    .share-action-btn{flex:1;min-width:120px;background:var(--warm);border:2px solid var(--border);border-radius:var(--r-sm);padding:12px 10px;font-size:13px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;color:var(--text);transition:background .12s}
+    .share-action-btn:active{background:var(--green-pale)}
+    #share-card{background:#fff;border-radius:var(--r);border:2px solid var(--border);overflow:hidden;box-shadow:var(--sh)}
+    .share-header{background:var(--green-dk);color:#fff;padding:20px 22px 16px;font-family:'Nunito',sans-serif}
+    .share-header-title{font-size:22px;font-weight:900;margin-bottom:2px}
+    .share-header-meta{font-size:12px;opacity:.8;font-weight:600}
+    .share-legend{display:flex;gap:14px;padding:10px 22px;background:var(--green-pale);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--green-dk);flex-wrap:wrap}
+    .share-row{display:flex;align-items:flex-start;gap:12px;padding:13px 22px;border-bottom:1px solid var(--border);font-family:'Nunito',sans-serif}
+    .share-row:last-child{border-bottom:none}
+    .share-row:nth-child(even){background:#fafaf8}
+    .share-status{font-size:18px;flex-shrink:0;width:24px;text-align:center;margin-top:1px}
+    .share-place-name{font-size:14px;font-weight:800;color:var(--text);line-height:1.3}
+    .share-place-addr{font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.4}
+    .share-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+    .share-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700}
+    .share-badge-v{background:#c8ddc8;color:#1e4020}
+    .share-badge-f{background:#dcc8c8;color:#5a1818}
+    .share-badge-w{background:#dcd0b8;color:#5a3010}
+    .share-footer{padding:12px 22px;font-size:10px;color:var(--text-muted);font-weight:600;font-family:'Nunito',sans-serif;border-top:1px solid var(--border);background:var(--cream)}
+
+    @media print{
+      #app > *:not(#view-share){ display:none!important }
+      #view-share{ display:flex!important }
+      .topbar,.share-action-btn,button{ display:none!important }
+      #share-card{ box-shadow:none;border:none }
+      body{ overflow:visible!important }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- LOADING -->
+  <div class="view active" id="view-loading">
+    <div class="load-logo">🌿</div>
+    <div class="load-txt">Loading Arbolito…</div>
+  </div>
+
+  <!-- SIGN IN -->
+  <div class="view" id="view-signin">
+    <div class="auth-screen">
+      <div class="auth-logo">🌿</div>
+      <div class="auth-title">Arbolito</div>
+      <div class="auth-sub">Your personal place collections.</div>
+      <div class="auth-card">
+        <div class="auth-err" id="si-err"></div>
+        <div class="auth-lbl">Username</div>
+        <input class="auth-in" type="text" id="si-user" placeholder="Your username" autocomplete="username" autocapitalize="none"/>
+        <div class="auth-lbl">Password</div>
+        <input class="auth-in" type="password" id="si-pass" placeholder="Your password" autocomplete="current-password"/>
+        <button class="big-btn" id="si-btn">Sign In</button>
+      </div>
+      <div class="auth-switch" id="go-signup">Don't have an account? <b>Create one</b></div>
+      <div class="auth-forgot" id="go-forgot">Forgot your password? <b>Let us know</b></div>
+    </div>
+  </div>
+
+  <!-- SIGN UP -->
+  <div class="view" id="view-signup">
+    <div class="auth-screen">
+      <div class="auth-logo">🌿</div>
+      <div class="auth-title">Create Account</div>
+      <div class="auth-sub">Just a few things to get started.</div>
+      <div class="auth-card">
+        <div class="auth-err" id="su-err"></div>
+        <div class="auth-lbl">Username</div>
+        <input class="auth-in" type="text" id="su-user" placeholder="Pick a username" autocomplete="username" autocapitalize="none"/>
+        <div class="auth-lbl">Password</div>
+        <input class="auth-in" type="password" id="su-pass" placeholder="At least 4 characters" autocomplete="new-password"/>
+        <div class="auth-lbl">Repeat Password</div>
+        <input class="auth-in" type="password" id="su-pass2" placeholder="Same password again" autocomplete="new-password"/>
+        <button class="big-btn" id="su-btn">Create Account</button>
+      </div>
+      <div class="auth-switch" id="go-signin">Already have an account? <b>Sign in</b></div>
+    </div>
+  </div>
+
+  <!-- FORGOT PASSWORD -->
+  <div class="view" id="view-forgot">
+    <div class="auth-screen">
+      <div class="auth-logo">🌿</div>
+      <div class="auth-title">Forgot Password?</div>
+      <div class="auth-sub">Tell us your username and we'll sort it out for you.</div>
+      <div class="auth-card">
+        <div class="auth-err" id="fp-err"></div>
+        <div class="auth-ok" id="fp-ok"></div>
+        <div class="auth-lbl">Username</div>
+        <input class="auth-in" type="text" id="fp-user" placeholder="Your username" autocapitalize="none"/>
+        <button class="big-btn" id="fp-btn">Send Request</button>
+      </div>
+      <div class="auth-switch" id="go-signin2">Back to <b>Sign In</b></div>
+    </div>
+  </div>
+
+  <!-- LISTS -->
+  <div class="view" id="view-lists">
+    <div class="topbar">
+      <div style="flex:1">
+        <div class="topbar-title">🌿 Arbolito</div>
+        <div class="topbar-sub" id="lists-sub"></div>
+      </div>
+      <button class="signout" id="btn-signout">Sign out</button>
+    </div>
+    <div class="scroll-area" id="lists-scroll"></div>
+    <button class="fab" id="fab-list">＋</button>
+    <nav class="bottom-nav">
+      <button class="nav-btn active" id="tab-home-lists">
+        <span class="nav-icon">🗂️</span><span class="nav-label">Lists</span>
+      </button>
+      <button class="nav-btn" id="tab-home-stats">
+        <span class="nav-icon">📊</span><span class="nav-label">Stats</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- STATS -->
+  <div class="view" id="view-stats">
+    <div class="topbar">
+      <button class="back-btn" id="back-stats">‹</button>
+      <div style="flex:1">
+        <div class="topbar-title">📊 My Stats</div>
+        <div class="topbar-sub" id="stats-sub"></div>
+      </div>
+    </div>
+    <div class="scroll-area" id="stats-scroll"></div>
+    <nav class="bottom-nav">
+      <button class="nav-btn" id="tab-stats-lists">
+        <span class="nav-icon">🗂️</span><span class="nav-label">Lists</span>
+      </button>
+      <button class="nav-btn active">
+        <span class="nav-icon">📊</span><span class="nav-label">Stats</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- PLACES -->
+  <div class="view" id="view-places">
+    <div class="topbar">
+      <button class="back-btn" id="back-places">‹</button>
+      <div style="flex:1;min-width:0">
+        <div class="topbar-title" id="places-title" style="font-size:16px"></div>
+        <div class="topbar-sub" id="places-sub"></div>
+      </div>
+      <button class="icon-btn" id="btn-list-map" style="font-size:22px;padding:4px 0 4px 8px">🗺️</button>
+    </div>
+    <div class="scroll-area" id="places-scroll"></div>
+    <button class="fab" id="fab-place">＋</button>
+    <nav class="bottom-nav">
+      <button class="nav-btn active" id="tab-places"><span class="nav-icon">📋</span><span class="nav-label">Places</span></button>
+      <button class="nav-btn" id="tab-map"><span class="nav-icon">🗺️</span><span class="nav-label">Map</span></button>
+      <button class="nav-btn" id="tab-share"><span class="nav-icon">📤</span><span class="nav-label">Share</span></button>
+    </nav>
+  </div>
+
+  <!-- MAP -->
+  <div class="view" id="view-map">
+    <div class="topbar">
+      <button class="back-btn" id="back-map">‹</button>
+      <div style="flex:1;min-width:0">
+        <div class="topbar-title" id="map-title" style="font-size:16px"></div>
+        <div class="topbar-sub" id="map-sub">Tap a pin to see details</div>
+      </div>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <!-- SHARE -->
+  <div class="view" id="view-share">
+    <div class="topbar">
+      <button class="back-btn" id="back-share">‹</button>
+      <div style="flex:1;min-width:0">
+        <div class="topbar-title" id="share-title" style="font-size:16px"></div>
+        <div class="topbar-sub">Ready to share or print</div>
+      </div>
+    </div>
+    <div class="scroll-area" style="padding-bottom:100px">
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="share-action-btn" id="share-print">🖨️ Print / Save PDF</button>
+        <button class="share-action-btn" id="share-copy">📋 Copy as Text</button>
+        <button class="share-action-btn" id="share-img">🖼️ Save as Image</button>
+      </div>
+      <div id="share-card"><!-- filled by JS --></div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- MODAL: LIST -->
+<div class="overlay" id="ov-list">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="ml-title">New List</div>
+    <div class="modal-body">
+      <div class="lbl">Name</div>
+      <input type="text" id="ml-name" placeholder="e.g. Libraries to Check Out" maxlength="40"/>
+      <div class="lbl" style="margin-top:16px">Icon</div>
+      <div class="emoji-grid" id="ml-emojis"></div>
+      <button class="save-btn" id="ml-save">Save List</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: PLACE -->
+<div class="overlay" id="ov-place">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="mp-title">Add Place</div>
+    <div class="modal-body">
+      <div class="lbl">Place Name *</div>
+      <input type="text" id="mp-name" placeholder="e.g. Woodstock Library" maxlength="60"/>
+      <div class="lbl">Address *</div>
+      <div class="search-wrap">
+        <input type="text" id="mp-addr" placeholder="Start typing an address…" maxlength="140" autocomplete="off"/>
+        <div class="ac-list" id="mp-ac" style="display:none"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:5px;line-height:1.5">💡 Pick from suggestions to pin it on the map automatically.</div>
+      <div class="lbl">Notes</div>
+      <textarea id="mp-notes" placeholder="Hours, parking, anything useful…" maxlength="300"></textarea>
+      <div class="lbl">Status</div>
+      <div class="chip-row">
+        <button class="chip" data-st="visited">🌲 Visited</button>
+        <button class="chip fav-chip" data-st="favorite">🤍 Favorite</button>
+        <button class="chip want-chip" data-st="want">🍂 Want Soon</button>
+      </div>
+      <button class="save-btn" id="mp-save">Save Place</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────
+const SUPA_URL = 'https://grcldjdsotoekttuuwcd.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyY2xkamRzb3RvZWt0dHV1d2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMjU4MTQsImV4cCI6MjA5MTcwMTgxNH0.hS8THQfZ6wx1jOimSCna6NPkfsJwd5q1f_FjrVGqL-Y';
+
+// EmailJS config — sign up free at emailjs.com, create a service + template
+// Then fill these in. Until then, forgot-password just shows a message.
+const EMAILJS_SERVICE  = 'YOUR_EMAILJS_SERVICE_ID';
+const EMAILJS_TEMPLATE = 'YOUR_EMAILJS_TEMPLATE_ID';
+const EMAILJS_PUBLIC   = 'YOUR_EMAILJS_PUBLIC_KEY';
+const ADMIN_EMAIL      = 'lizz2009@yahoo.com';
+// ─────────────────────────────────────────────────────────
+
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+const EMOJIS = ['🌲','🌿','🍃','🌺','🌸','🌻','🍀','🌾','🌵','🍁','🌴','🌊','🏞️','☕','📚','🎨','🏋️','🛍️','🏡','🎭','🎵','🍕','🌙','⛰️','🏖️','🦋','🐝','🌈','🎪','🗺️'];
+
+let db  = {lists:[], places:[]};
+let me  = null; // {id, username, name}
+let ui  = {
+  listId:null, editListId:null, editPlaceId:null,
+  emoji:'🌲', status:{visited:false,favorite:false,want:false},
+  coords:null, lmap:null, mapReady:false, markers:[], acT:null
+};
+
+// ── helpers ───────────────────────────────────────────────
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+let _tt;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2600);}
+function uid(){return crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2);}
+
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  if(id==='map'){
+    if(!ui.mapReady) initMap();
+    setTimeout(()=>{ ui.lmap&&ui.lmap.invalidateSize(); renderMarkers(); },90);
+  }
+}
+function openOv(id){document.getElementById(id).classList.add('open');}
+function closeOv(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeOv(o.id);}));
+
+// ── simple password hash (SHA-256 via SubtleCrypto) ───────
+async function hashPass(pass){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// ── session (localStorage so refresh keeps you logged in) ─
+function saveSession(user){
+  localStorage.setItem('arbolito_user', JSON.stringify(user));
+}
+function loadSession(){
+  try{ return JSON.parse(localStorage.getItem('arbolito_user')); }catch(e){return null;}
+}
+function clearSession(){
+  localStorage.removeItem('arbolito_user');
+}
+
+// ── boot ──────────────────────────────────────────────────
+async function boot(){
+  const saved = loadSession();
+  if(saved){
+    // verify user still exists in db
+    const {data} = await sb.from('users').select('id,username').eq('id', saved.id).maybeSingle();
+    if(data){
+      me = data;
+      await loadData();
+      showView('lists');
+      renderLists();
+      return;
+    } else {
+      clearSession();
+    }
+  }
+  showView('signin');
+}
+boot();
+
+// ── sign in ───────────────────────────────────────────────
+document.getElementById('si-btn').addEventListener('click', async function(){
+  const username = document.getElementById('si-user').value.trim().toLowerCase();
+  const pass     = document.getElementById('si-pass').value.toLowerCase();
+  const err      = document.getElementById('si-err');
+  err.textContent = '';
+
+  if(!username || !pass){ err.textContent = 'Please fill in all fields.'; return; }
+
+  this.disabled = true; this.textContent = 'Signing in…';
+
+  const hashed = await hashPass(pass);
+  const {data, error} = await sb.from('users')
+    .select('id,username')
+    .eq('username', username)
+    .eq('password_hash', hashed)
+    .maybeSingle();
+
+  this.disabled = false; this.textContent = 'Sign In';
+
+  if(!data){
+    err.textContent = 'Wrong username or password.';
+    return;
+  }
+
+  me = data;
+  saveSession(me);
+  await loadData();
+  showView('lists');
+  renderLists();
+});
+
+// ── sign up ───────────────────────────────────────────────
+document.getElementById('su-btn').addEventListener('click', async function(){
+  const username = document.getElementById('su-user').value.trim().toLowerCase();
+  const pass     = document.getElementById('su-pass').value.toLowerCase();
+  const pass2    = document.getElementById('su-pass2').value.toLowerCase();
+  const err      = document.getElementById('su-err');
+  err.textContent = '';
+
+  if(!username || !pass || !pass2){ err.textContent = 'Please fill in all fields.'; return; }
+  if(pass.length < 4){ err.textContent = 'Password must be at least 4 characters.'; return; }
+  if(pass !== pass2){ err.textContent = 'Passwords do not match.'; return; }
+
+  this.disabled = true; this.textContent = 'Creating…';
+
+  // check username taken
+  const {data: existing} = await sb.from('users').select('id').eq('username', username).maybeSingle();
+  if(existing){ err.textContent = 'That username is already taken.'; this.disabled=false; this.textContent='Create Account'; return; }
+
+  const hashed = await hashPass(pass);
+  const newUser = { id: uid(), username, password_hash: hashed };
+  const {data, error} = await sb.from('users').insert(newUser).select('id,username').single();
+
+  this.disabled = false; this.textContent = 'Create Account';
+
+  if(error){ err.textContent = 'Error: ' + error.message; console.error(error); return; }
+
+  me = data;
+  saveSession(me);
+  await loadData();
+  showView('lists');
+  renderLists();
+  toast('Welcome to Arbolito! 🌿');
+});
+
+// ── forgot password ───────────────────────────────────────
+document.getElementById('fp-btn').addEventListener('click', async function(){
+  const username = document.getElementById('fp-user').value.trim().toLowerCase();
+  const err      = document.getElementById('fp-err');
+  const ok       = document.getElementById('fp-ok');
+  err.textContent = ''; ok.textContent = '';
+
+  if(!username){ err.textContent = 'Please enter your username.'; return; }
+
+  this.disabled = true; this.textContent = 'Sending…';
+
+  // look up the user
+  const {data} = await sb.from('users').select('username,name').eq('username', username).single();
+
+  if(!data){
+    err.textContent = 'Username not found.';
+    this.disabled = false; this.textContent = 'Send Request';
+    return;
+  }
+
+  // send email to admin via EmailJS
+  // If EmailJS not set up yet, just show a message
+  if(EMAILJS_PUBLIC !== 'YOUR_EMAILJS_PUBLIC_KEY'){
+    try{
+      await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+        to_email: ADMIN_EMAIL,
+        subject:  'Arbolito: Password Reset Request',
+        message:  `User "${data.username}" (${data.name}) forgot their password and needs a reset.`,
+      }, EMAILJS_PUBLIC);
+    }catch(e){ console.error('EmailJS error', e); }
+  }
+
+  this.disabled = false; this.textContent = 'Send Request';
+  ok.textContent = 'Request sent! The admin will reset your password soon.';
+});
+
+// ── nav links ─────────────────────────────────────────────
+document.getElementById('go-signup').addEventListener('click', ()=>showView('signup'));
+document.getElementById('go-signin').addEventListener('click', ()=>showView('signin'));
+document.getElementById('go-signin2').addEventListener('click', ()=>showView('signin'));
+document.getElementById('go-forgot').addEventListener('click', ()=>showView('forgot'));
+
+// sign out
+document.getElementById('btn-signout').addEventListener('click', ()=>{
+  clearSession();
+  me = null;
+  db = {lists:[], places:[]};
+  showView('signin');
+});
+
+// ── database ──────────────────────────────────────────────
+async function loadData(){
+  const [lr, pr] = await Promise.all([
+    sb.from('lists').select('*').eq('user_id', me.id).order('created_at'),
+    sb.from('places').select('*').eq('user_id', me.id).order('created_at'),
+  ]);
+  db.lists  = lr.data  || [];
+  db.places = pr.data  || [];
+}
+
+async function dbList(l){
+  const {error} = await sb.from('lists').upsert({id:l.id, user_id:me.id, name:l.name, emoji:l.emoji});
+  if(error) console.error('list save error', error);
+}
+async function dbDelList(id){
+  await sb.from('places').delete().eq('list_id', id).eq('user_id', me.id);
+  await sb.from('lists').delete().eq('id', id).eq('user_id', me.id);
+}
+async function dbPlace(p){
+  const {error} = await sb.from('places').upsert({
+    id:p.id, user_id:me.id, list_id:p.list_id,
+    name:p.name, address:p.address||'', notes:p.notes||'',
+    lat:p.lat||null, lng:p.lng||null,
+    visited:!!p.visited, favorite:!!p.favorite, want:!!p.want,
+  });
+  if(error) console.error('place save error', error);
+}
+async function dbDelPlace(id){
+  await sb.from('places').delete().eq('id', id).eq('user_id', me.id);
+}
+
+// ── lists view ────────────────────────────────────────────
+function renderLists(){
+  const el = document.getElementById('lists-scroll');
+  const totalVisited = db.places.filter(p=>p.visited).length;
+  document.getElementById('lists-sub').textContent =
+    `@${me.username} · ${db.lists.length} list${db.lists.length!==1?'s':''} · ${db.places.length} place${db.places.length!==1?'s':''} · ${totalVisited} visited`;
+
+  const summary = `<div class="summary-card">
+    <div class="summary-grid">
+      <div class="summary-stat"><div class="summary-num">${db.lists.length}</div><div class="summary-lbl">Lists</div></div>
+      <div class="summary-stat"><div class="summary-num">${db.places.length}</div><div class="summary-lbl">Places</div></div>
+      <div class="summary-stat"><div class="summary-num">${totalVisited}</div><div class="summary-lbl">Visited</div></div>
+    </div>
+  </div>`;
+
+  if(!db.lists.length){
+    el.innerHTML= summary + `<div class="empty"><div class="empty-icon">🌿</div><div class="empty-title">No lists yet</div><div class="empty-text">Tap ＋ to create your first collection.</div></div>`;
+    return;
+  }
+  el.innerHTML = summary + db.lists.map(l=>{
+    const listPlaces = db.places.filter(p=>p.list_id===l.id);
+    const cnt = listPlaces.length;
+    const vis = listPlaces.filter(p=>p.visited).length;
+    const pct = cnt ? Math.round((vis/cnt)*100) : 0;
+    return `<div class="list-card" data-id="${l.id}">
+      <div class="list-emoji">${l.emoji||'🌿'}</div>
+      <div class="list-info">
+        <div class="list-name">${esc(l.name)}</div>
+        <div class="list-meta">${cnt} place${cnt!==1?'s':''}${cnt?' · '+vis+' visited':''}</div>
+        <div class="list-progress">
+          <div class="progress"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <div class="progress-text">${pct}%</div>
+        </div>
+      </div>
+      <div class="list-btns">
+        <button class="icon-btn more" data-ml="${l.id}">⋯</button>
+      </div>
+      <span style="color:var(--text-muted);font-size:18px">›</span>
+    </div>`;
+  }).join('');
+
+  el.querySelectorAll('.list-card').forEach(c=>{
+    c.addEventListener('click',e=>{if(e.target.closest('[data-ml]'))return;openList(c.dataset.id);});
+  });
+  el.querySelectorAll('[data-ml]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const id=b.dataset.ml;
+    const choice=prompt('Type E to edit or D to delete this list.','E');
+    if(!choice) return;
+    const v=choice.trim().toUpperCase();
+    if(v==='E') openEditList(id);
+    if(v==='D') deleteList(id);
+  }));
+}
+
+function renderStats(){
+  const totalVisited = db.places.filter(p=>p.visited).length;
+  const totalFav = db.places.filter(p=>p.favorite).length;
+  const totalWant = db.places.filter(p=>p.want).length;
+  document.getElementById('stats-sub').textContent = `@${me.username} · ${db.lists.length} lists`;
+
+  const topLists = [...db.lists].map(l=>{
+    const ps=db.places.filter(p=>p.list_id===l.id);
+    return {name:l.name, emoji:l.emoji, total:ps.length, visited:ps.filter(p=>p.visited).length};
+  }).sort((a,b)=>b.total-a.total);
+
+  document.getElementById('stats-scroll').innerHTML = `
+    <div class="summary-card">
+      <div class="summary-grid">
+        <div class="summary-stat"><div class="summary-num">${db.places.length}</div><div class="summary-lbl">Total Places</div></div>
+        <div class="summary-stat"><div class="summary-num">${totalVisited}</div><div class="summary-lbl">Visited</div></div>
+        <div class="summary-stat"><div class="summary-num">${totalFav}</div><div class="summary-lbl">Favorites</div></div>
+      </div>
+    </div>
+    <div class="stats-card">
+      <div class="stats-title">Collection Breakdown</div>
+      <div class="stats-row"><span>Want soon</span><strong>${totalWant}</strong></div>
+      <div class="stats-row"><span>Unvisited</span><strong>${Math.max(db.places.length-totalVisited,0)}</strong></div>
+      <div class="stats-row"><span>Avg per list</span><strong>${db.lists.length ? (db.places.length/db.lists.length).toFixed(1) : '0'}</strong></div>
+    </div>
+    <div class="stats-card">
+      <div class="stats-title">Your Lists</div>
+      ${topLists.length ? topLists.map(l=>`<div class="stats-row"><span>${l.emoji||'🌿'} ${esc(l.name)}</span><strong>${l.visited}/${l.total}</strong></div>`).join('') : '<div class="empty-text">No lists yet.</div>'}
+    </div>
+  `;
+}
+
+function openList(id){
+  ui.listId = id;
+  const l = db.lists.find(x=>x.id===id);
+  document.getElementById('places-title').textContent = (l?.emoji||'')+' '+(l?.name||'');
+  showView('places'); renderPlaces();
+}
+
+// ── places view ───────────────────────────────────────────
+function renderPlaces(){
+  const ps = db.places.filter(p=>p.list_id===ui.listId).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  const visitedCount = ps.filter(p=>p.visited).length;
+  document.getElementById('places-sub').textContent = `${ps.length} place${ps.length!==1?'s':''} · ${visitedCount} visited`;
+  const el = document.getElementById('places-scroll');
+  if(!ps.length){
+    el.innerHTML=`<div class="empty"><div class="empty-icon">📍</div><div class="empty-title">No places yet</div><div class="empty-text">Tap ＋ to add your first place.</div></div>`;
+    return;
+  }
+  el.innerHTML = ps.map(p=>{
+    const ico = p.favorite?'🤍':p.visited?'🌲':p.want?'🍂':'📍';
+    const tags = [
+      p.visited?'<span class="tag tag-v">🌲 Visited</span>':'',
+      p.favorite?'<span class="tag tag-f">🤍 Favorite</span>':'',
+      p.want?'<span class="tag tag-w">🍂 Want Soon</span>':''
+    ].filter(Boolean).join('');
+    return `<div class="place-card">
+      <div class="place-header">
+        <div class="place-ico">${ico}</div>
+        <div style="flex:1;min-width:0">
+          <div class="place-name">${esc(p.name)}</div>
+          ${p.address?`<div class="place-addr">${esc(p.address)}</div>`:''}
+          ${p.notes?`<div class="place-notes">${esc(p.notes)}</div>`:''}
+        </div>
+        <button class="icon-btn more place-more" data-mp="${p.id}">⋯</button>
+      </div>
+      ${tags?`<div class="place-tags">${tags}</div>`:''}
+      <div class="place-actions">
+        <button class="act-btn ${p.visited?'on':''}" data-tog="visited" data-pid="${p.id}">${p.visited?'✓ Visited':'Mark Visited'}</button>
+        <button class="act-btn ${p.favorite?'fav-on':''}" data-tog="favorite" data-pid="${p.id}">🤍 Fav</button>
+        <button class="act-btn ${p.want?'want-on':''}" data-tog="want" data-pid="${p.id}">${p.want?'🍂 Want':'Want Soon'}</button>
+        ${p.lat?`<button class="act-btn" data-nav="${p.id}">🧭 Navigate</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  el.querySelectorAll('[data-tog]').forEach(b=>b.addEventListener('click',()=>toggleStatus(b.dataset.pid,b.dataset.tog)));
+  el.querySelectorAll('[data-nav]').forEach(b=>b.addEventListener('click',()=>navPlace(b.dataset.nav)));
+  el.querySelectorAll('[data-mp]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const id=b.dataset.mp;
+    const choice=prompt('Type E to edit or D to delete this place.','E');
+    if(!choice) return;
+    const v=choice.trim().toUpperCase();
+    if(v==='E') openEditPlace(id);
+    if(v==='D') delPlace(id);
+  }));
+}
+
+async function toggleStatus(pid, field){
+  const p = db.places.find(x=>x.id===pid); if(!p) return;
+  p[field] = !p[field]; renderPlaces();
+  await dbPlace(p);
+}
+function navPlace(pid){
+  const p = db.places.find(x=>x.id===pid); if(!p) return;
+  const url = p.lat
+    ? `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p.address)}`;
+  window.open(url,'_blank');
+}
+async function delPlace(pid){
+  if(!confirm('Delete this place?')) return;
+  db.places = db.places.filter(p=>p.id!==pid);
+  renderPlaces(); renderLists(); toast('Deleted 🗑️');
+  await dbDelPlace(pid);
+}
+
+// ── map ───────────────────────────────────────────────────
+function initMap(){
+  ui.lmap = L.map('map',{center:[39.5,-98.35],zoom:4});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+    attribution:'© CartoDB © OpenStreetMap', subdomains:'abcd', maxZoom:19
+  }).addTo(ui.lmap);
+  ui.mapReady = true;
+}
+function mkIcon(p){
+  let bg, em;
+  if(p.favorite){bg='#8b3a28';em='🤍';}
+  else if(p.visited){bg='#2d4f32';em='🌲';}
+  else if(p.want){bg='#9a5828';em='🍂';}
+  else{bg='#4a6a4e';em='📍';}
+  return L.divIcon({
+    html:`<div style="width:40px;height:40px;border-radius:50% 50% 50% 6px;background:${bg};border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;transform:rotate(-45deg);font-size:18px"><span style="transform:rotate(45deg);display:block;line-height:1">${em}</span></div>`,
+    className:'', iconSize:[40,40], iconAnchor:[20,40]
+  });
+}
+async function renderMarkers(){
+  // always reload fresh from DB so newly added places appear
+  const {data} = await sb.from('places').select('*').eq('user_id', me.id).eq('list_id', ui.listId);
+  if(data) db.places = [...db.places.filter(p=>p.list_id!==ui.listId), ...data];
+
+  const map = ui.lmap; if(!map) return;
+  ui.markers.forEach(m=>map.removeLayer(m)); ui.markers=[];
+
+  const all = db.places.filter(p=>p.list_id===ui.listId);
+  const ps  = all.filter(p=>p.lat!=null && p.lng!=null);
+  const missing = all.length - ps.length;
+
+  const l = db.lists.find(x=>x.id===ui.listId);
+  document.getElementById('map-title').textContent = (l?.emoji||'')+' '+(l?.name||'Map');
+  document.getElementById('map-sub').textContent = `${ps.length} pinned`
+    + (missing ? ` · ${missing} without pin` : '')
+    + ' · tap a marker';
+
+  ps.forEach(p=>{
+    const mk = L.marker([p.lat,p.lng],{icon:mkIcon(p)});
+    const tags = [
+      p.visited?'<span class="pop-tag pop-tag-v">🌲 Visited</span>':'',
+      p.favorite?'<span class="pop-tag pop-tag-f">🤍 Favorite</span>':'',
+      p.want?'<span class="pop-tag pop-tag-w">🍂 Want</span>':''
+    ].filter(Boolean).join('');
+    mk.bindPopup(`<div class="pop">
+      <div class="pop-name">${esc(p.name)}</div>
+      ${p.address?`<div class="pop-addr">${esc(p.address)}</div>`:''}
+      ${p.notes?`<div class="pop-notes">${esc(p.notes)}</div>`:''}
+      ${tags?`<div class="pop-tags">${tags}</div>`:''}
+      <button class="pop-nav" onclick="navPlace('${p.id}')">🧭 Navigate in Google Maps</button>
+      <div class="pop-row">
+        <button class="pop-edit" onclick="editFromMap('${p.id}')">✏️ Edit</button>
+        <button class="pop-del" onclick="delFromMap('${p.id}')">🗑️ Delete</button>
+      </div>
+    </div>`,{maxWidth:260,closeButton:false});
+    mk.addTo(map); ui.markers.push(mk);
+  });
+
+  if(ps.length) map.fitBounds(L.latLngBounds(ps.map(p=>[p.lat,p.lng])),{padding:[50,50],maxZoom:15});
+  else map.setView([39.5,-98.35],4);
+}
+window.navPlace = navPlace;
+window.editFromMap = function(pid){ui.lmap&&ui.lmap.closePopup();openEditPlace(pid);};
+window.delFromMap  = function(pid){ui.lmap&&ui.lmap.closePopup();delPlace(pid);renderMarkers();};
+
+// ── autocomplete ──────────────────────────────────────────
+async function fetchAC(q){
+  if(!q||q.length<3){hideAC();return;}
+  try{
+    const res  = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`,{headers:{'User-Agent':'Arbolito/1.0','Accept-Language':'en'}});
+    const data = await res.json();
+    const box  = document.getElementById('mp-ac');
+    if(!data.length){hideAC();return;}
+    box.style.display='block';
+    box.innerHTML=data.map(r=>{
+      const name=r.name||r.display_name.split(',')[0];
+      return `<div class="ac-item" data-lat="${r.lat}" data-lng="${r.lon}" data-name="${esc(name)}" data-addr="${esc(r.display_name)}">
+        <div class="ac-name">${esc(name)}</div>
+        <div class="ac-addr">${esc(r.display_name)}</div>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.ac-item').forEach(item=>item.addEventListener('click',()=>{
+      const ni=document.getElementById('mp-name');
+      if(!ni.value.trim()) ni.value=item.dataset.name;
+      document.getElementById('mp-addr').value=item.dataset.addr;
+      ui.coords={lat:parseFloat(item.dataset.lat),lng:parseFloat(item.dataset.lng)};
+      hideAC();
+    }));
+  }catch(e){hideAC();}
+}
+function hideAC(){document.getElementById('mp-ac').style.display='none';}
+document.getElementById('mp-addr').addEventListener('input',e=>{
+  ui.coords=null; clearTimeout(ui.acT);
+  ui.acT=setTimeout(()=>fetchAC(e.target.value),380);
+});
+document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))hideAC();});
+
+// ── modal: list ───────────────────────────────────────────
+function buildGrid(){
+  const g=document.getElementById('ml-emojis');
+  g.innerHTML=EMOJIS.map(e=>`<div class="emoji-opt${e===ui.emoji?' sel':''}" data-e="${e}">${e}</div>`).join('');
+  g.querySelectorAll('.emoji-opt').forEach(o=>o.addEventListener('click',()=>{
+    ui.emoji=o.dataset.e;
+    g.querySelectorAll('.emoji-opt').forEach(x=>x.classList.toggle('sel',x===o));
+  }));
+}
+function openNewList(){ui.editListId=null;ui.emoji='🌲';document.getElementById('ml-title').textContent='New List';document.getElementById('ml-name').value='';buildGrid();openOv('ov-list');}
+function openEditList(id){const l=db.lists.find(x=>x.id===id);if(!l)return;ui.editListId=id;ui.emoji=l.emoji;document.getElementById('ml-title').textContent='Edit List';document.getElementById('ml-name').value=l.name;buildGrid();openOv('ov-list');}
+async function saveList(){
+  const name=document.getElementById('ml-name').value.trim();
+  if(!name){toast('Name required');return;}
+  const btn=document.getElementById('ml-save'); btn.disabled=true;
+  if(ui.editListId){
+    const l=db.lists.find(x=>x.id===ui.editListId);
+    l.name=name; l.emoji=ui.emoji;
+    renderLists(); closeOv('ov-list'); toast('List updated ✓');
+    await dbList(l);
+  } else {
+    if(db.lists.length>=20){toast('Max 20 lists');btn.disabled=false;return;}
+    const l={id:uid(),name,emoji:ui.emoji,user_id:me.id};
+    db.lists.push(l); renderLists(); closeOv('ov-list'); toast('List created 🌿');
+    await dbList(l);
+  }
+  btn.disabled=false;
+}
+async function deleteList(id){
+  const l=db.lists.find(x=>x.id===id);
+  const cnt=db.places.filter(p=>p.list_id===id).length;
+  if(!confirm(`Delete "${l.name}"? This removes ${cnt} place${cnt!==1?'s':''} too.`))return;
+  db.lists=db.lists.filter(x=>x.id!==id);
+  db.places=db.places.filter(p=>p.list_id!==id);
+  renderLists(); toast('List deleted');
+  await dbDelList(id);
+}
+
+// ── modal: place ──────────────────────────────────────────
+function openNewPlace(){ui.editPlaceId=null;ui.status={visited:false,favorite:false,want:false};ui.coords=null;document.getElementById('mp-title').textContent='Add Place';['mp-name','mp-addr','mp-notes'].forEach(i=>document.getElementById(i).value='');syncChips();hideAC();openOv('ov-place');setTimeout(()=>document.getElementById('mp-name').focus(),300);}
+function openEditPlace(pid){const p=db.places.find(x=>x.id===pid);if(!p)return;ui.editPlaceId=pid;ui.status={visited:!!p.visited,favorite:!!p.favorite,want:!!p.want};ui.coords=p.lat?{lat:p.lat,lng:p.lng}:null;document.getElementById('mp-title').textContent='Edit Place';document.getElementById('mp-name').value=p.name;document.getElementById('mp-addr').value=p.address||'';document.getElementById('mp-notes').value=p.notes||'';syncChips();hideAC();openOv('ov-place');}
+function syncChips(){document.querySelectorAll('[data-st]').forEach(c=>c.classList.toggle('on',!!ui.status[c.dataset.st]));}
+async function savePlace(){
+  const name=document.getElementById('mp-name').value.trim();
+  const addr=document.getElementById('mp-addr').value.trim();
+  const notes=document.getElementById('mp-notes').value.trim();
+  if(!name){toast('Name required');return;}
+  if(!addr){toast('Address required');return;}
+  const btn=document.getElementById('mp-save'); btn.disabled=true;
+  const lat=ui.coords?.lat||null, lng=ui.coords?.lng||null;
+  if(ui.editPlaceId){
+    const p=db.places.find(x=>x.id===ui.editPlaceId);
+    Object.assign(p,{name,address:addr,notes,lat,lng,...ui.status});
+    renderPlaces(); closeOv('ov-place'); toast('Saved ✓');
+    await dbPlace(p);
+  } else {
+    if(db.places.filter(p=>p.list_id===ui.listId).length>=100){toast('Max 100 per list');btn.disabled=false;return;}
+    const p={id:uid(),list_id:ui.listId,user_id:me.id,name,address:addr,notes,lat,lng,...ui.status,created_at:new Date().toISOString()};
+    db.places.push(p); renderPlaces(); renderLists(); closeOv('ov-place'); toast('Place added 🌿');
+    await dbPlace(p);
+  }
+  btn.disabled=false;
+}
+
+// ── share / export ────────────────────────────────────────
+function openShare(){
+  const l  = db.lists.find(x=>x.id===ui.listId);
+  const ps = db.places.filter(p=>p.list_id===ui.listId)
+               .sort((a,b)=>a.name.localeCompare(b.name));
+
+  document.getElementById('share-title').textContent = (l?.emoji||'')+ ' Share List';
+
+  const now = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const visited = ps.filter(p=>p.visited).length;
+  const want    = ps.filter(p=>p.want).length;
+
+  const rows = ps.map(p=>{
+    const ico = p.visited ? '🌲' : p.want ? '🍂' : p.favorite ? '🤍' : '📍';
+    const badges = [
+      p.visited  ? '<span class="share-badge share-badge-v">Visited</span>'   : '',
+      p.favorite ? '<span class="share-badge share-badge-f">Favorite</span>'  : '',
+      p.want     ? '<span class="share-badge share-badge-w">Want to go</span>': '',
+    ].filter(Boolean).join('');
+    return `<div class="share-row">
+      <div class="share-status">${ico}</div>
+      <div style="flex:1;min-width:0">
+        <div class="share-place-name">${esc(p.name)}</div>
+        ${p.address ? `<div class="share-place-addr">${esc(p.address)}</div>` : ''}
+        ${badges ? `<div class="share-badges">${badges}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('share-card').innerHTML = `
+    <div class="share-header">
+      <div class="share-header-title">${l?.emoji||'🌿'} ${esc(l?.name||'My List')}</div>
+      <div class="share-header-meta">${ps.length} place${ps.length!==1?'s':''} · ${visited} visited · ${want} want to go · ${now}</div>
+    </div>
+    <div class="share-legend">
+      <span>🌲 Visited</span><span>🍂 Want to go</span><span>🤍 Favorite</span><span>📍 Not yet</span>
+    </div>
+    ${rows || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:14px">No places in this list yet.</div>'}
+    <div class="share-footer">Made with Arbolito 🌿</div>
+  `;
+
+  showView('share');
+}
+
+document.getElementById('share-print').addEventListener('click', ()=> window.print());
+
+document.getElementById('share-copy').addEventListener('click', ()=>{
+  const l  = db.lists.find(x=>x.id===ui.listId);
+  const ps = db.places.filter(p=>p.list_id===ui.listId).sort((a,b)=>a.name.localeCompare(b.name));
+  const now = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  let text = `${l?.emoji||'🌿'} ${l?.name||'My List'}\n${now}\n${'─'.repeat(30)}\n\n`;
+  ps.forEach(p=>{
+    const status = p.visited ? '🌲 Visited' : p.want ? '🍂 Want to go' : '📍 Not visited';
+    const fav    = p.favorite ? ' · 🤍 Favorite' : '';
+    text += `${p.name}\n`;
+    if(p.address) text += `  ${p.address}\n`;
+    text += `  ${status}${fav}\n\n`;
+  });
+  text += 'Made with Arbolito 🌿';
+  navigator.clipboard.writeText(text).then(()=>toast('Copied to clipboard ✓')).catch(()=>toast('Copy failed — try print instead'));
+});
+
+document.getElementById('share-img').addEventListener('click', async ()=>{
+  toast('Tip: use Print → Save as PDF for best results 🌿');
+});
+
+// ── wire up ───────────────────────────────────────────────
+document.getElementById('fab-list').addEventListener('click', openNewList);
+document.getElementById('fab-place').addEventListener('click', openNewPlace);
+document.getElementById('ml-save').addEventListener('click', saveList);
+document.getElementById('mp-save').addEventListener('click', savePlace);
+document.getElementById('ml-name').addEventListener('keydown',e=>{if(e.key==='Enter')saveList();});
+document.querySelectorAll('[data-st]').forEach(c=>c.addEventListener('click',()=>{ui.status[c.dataset.st]=!ui.status[c.dataset.st];syncChips();}));
+document.getElementById('back-places').addEventListener('click',()=>{showView('lists');renderLists();});
+document.getElementById('back-map').addEventListener('click',()=>{showView('places');});
+document.getElementById('back-share').addEventListener('click',()=>{showView('places');});
+document.getElementById('btn-list-map').addEventListener('click',()=>showView('map'));
+document.getElementById('tab-map').addEventListener('click',()=>showView('map'));
+document.getElementById('tab-share').addEventListener('click', openShare);
+document.getElementById('tab-places').addEventListener('click',()=>showView('places'));
+document.getElementById('tab-home-stats').addEventListener('click',()=>{showView('stats');renderStats();});
+document.getElementById('tab-home-lists').addEventListener('click',()=>{showView('lists');renderLists();});
+document.getElementById('tab-stats-lists').addEventListener('click',()=>{showView('lists');renderLists();});
+document.getElementById('back-stats').addEventListener('click',()=>{showView('lists');renderLists();});
+</script>
+</body>
+</html>
