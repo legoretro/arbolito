@@ -22,8 +22,8 @@
 
   <style>
     :root{
-      --green:#6b8f6e;--green-dk:#ff385c;--green-lt:#8aab8d;--green-pale:#dce8dd;
-     --cream:#f5f5f2;--warm:#ffffff;--bark:#3a2e22;
+      --green:#6b8f6e;--green-dk:#333333;--green-lt:#8aab8d;--green-pale:#dce8dd;
+     --cream:#f5f5f2;--warm:#fafafa;--bark:#3a2e22;
       --text:#222222;--text-soft:#4a5a4c;--text-muted:#7a8c7c;
       --border:#eeeeee;--red:#8b3a28;
       --r:16px;--r-sm:12px;
@@ -829,7 +829,7 @@ function mkIcon(p){
   else if(p.want){bg='#9a5828';em='🍂';}
   else{bg='#4a6a4e';em='📍';}
   return L.divIcon({
-    html:`<div style="width:40px;height:40px;border-radius:50% 50% 50% 6px;background:${bg};border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;transform:rotate(-45deg);font-size:18px"><span style="transform:rotate(45deg);display:block;line-height:1">${em}</span></div>`,
+    html:`<div style="width:40px;height:40px;border-radius:50% 50% 50% 6px;background:${bg};border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;transform:rotate(-45deg);font-size:20px"><span style="transform:rotate(45deg);display:block;line-height:1">${em}</span></div>`,
     className:'', iconSize:[40,40], iconAnchor:[20,40]
   });
 }
